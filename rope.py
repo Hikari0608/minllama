@@ -63,13 +63,26 @@ def apply_rotary_emb(
 
     # First, compute the trigonometric values in the second and fourth columns in
     # slide 22 (linked above).
+    position_ids = torch.arange(0, seqlen, device=device, dtype=torch.float32)  # (seqlen,)
+    inv_freq = 1.0 / (theta ** (torch.arange(0, head_dim, 2, device=device, dtype=torch.float32) / head_dim))  # (head_dim / 2,)
+
+    angles = torch.einsum("i,j->ij", position_ids, inv_freq)  # (seqlen, head_dim / 2)
+    sin_angles = reshape_for_broadcast(torch.sin(angles), query_real)  # (seqlen, head_dim / 2)
+    cos_angles = reshape_for_broadcast(torch.cos(angles), query_real)  # (seqlen, head_dim / 2)
+
+    query_rotated_real = query_real * cos_angles - query_imag * sin_angles
+    query_rotated_imag = query_real * sin_angles + query_imag * cos_angles
+    key_rotated_real = key_real * cos_angles - key_imag * sin_angles
+    key_rotated_imag = key_real * sin_angles + key_imag * cos_angles
 
     # Then, combine these trigonometric values with the tensors query_real, query_imag,
     # key_real, and key_imag.
+    query_out = torch.stack([query_rotated_real, query_rotated_imag], dim=-1).flatten(-2)  # (batch_size, seqlen, n_heads, head_dim)
+    key_out = torch.stack([key_rotated_real, key_rotated_imag], dim=-1).flatten(-2)
 
-    raise NotImplementedError
+    # raise NotImplementedError
 
-    query_out = None
-    key_out = None
+    # query_out = None
+    # key_out = None
     # Return the rotary position embeddings for the query and key tensors
     return query_out, key_out
